@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teachable Machine Pose Model UI</title>
+    
+    <style>
+        /* 기본 테마 및 레이아웃 설정 */
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #334155;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+
+        header h1 span {
+            color: var(--primary);
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        /* 메인 콘텐츠 그리드 레이아웃 */
+        .content-wrapper {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 24px;
+        }
+
+        @media (min-width: 768px) {
+            .content-wrapper {
+                grid-template-columns: 1.1fr 1fr;
+            }
+        }
+
+        /* 왼쪽: 웹캠 카메라 섹션 */
+        .video-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: var(--card-bg);
+            padding: 24px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            max-width: 300px;
+            aspect-ratio: 1 / 1;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* 시작 버튼 */
+        #start-btn {
+            width: 100%;
+            max-width: 300px;
+            padding: 14px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        #start-btn:hover {
+            background: var(--primary-hover);
+        }
+
+        #start-btn:disabled {
+            background: #475569;
+            cursor: not-allowed;
+        }
+
+        /* 오른쪽: 실시간 분석 결과 섹션 */
+        .result-section {
+            background: var(--card-bg);
+            padding: 24px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .result-section h2 {
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 10px;
+        }
+
+        /* 動的 생성될 결과 한 줄(클래스별 게이지) 디자인 */
+        #label-container {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .prediction-item {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .label-text {
+            display: flex;
+            justify-content: space-between;
+            font-size: 18px;          /* 기존 요청하신 큰 폰트 크기 유지 */
+            font-weight: bold;        /* 두껍게 처리 */
+            color: var(--text-main);  /* 다크모드에 맞춰 밝은 색상으로 조정 */
+        }
+
+        .progress-bar-bg {
+            width: 100%;
+            height: 14px;
+            background: var(--border);
+            border-radius: 7px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #818cf8, var(--primary));
+            border-radius: 7px;
+            transition: width 0.1s ease-out;
+        }
+
+        /* 로딩 스피너 */
+        .spinner {
+            position: absolute;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border-left-color: var(--primary);
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>Teachable Machine <span>Pose Model</span></h1>
+            <p>실시간으로 포즈를 감지하고 분석합니다.</p>
+        </header>
+
+        <main class="content-wrapper">
+            <div class="video-section">
+                <div class="canvas-container">
+                    <canvas id="canvas"></canvas>
+                    <div id="loading-spinner" class="spinner"></div>
+                </div>
+                <button type="button" id="start-btn" onclick="init()">AI 카메라 시작</button>
+            </div>
+
+            <div class="result-section">
+                <h2>실시간 분석 결과</h2>
+                <div id="label-container">
+                    <div style="color: var(--text-muted); font-size: 15px; font-weight: normal; text-align: center; margin-top: 20px;">
+                        카메라를 시작하면 분석 결과가 이곳에 표시됩니다.
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/pose@0.8/dist/teachablemachine-pose.min.js"></script>
+    
+    <script type="text/javascript">
+        // Teachable Machine 제공 모델 URL
+        const URL = "https://teachablemachine.withgoogle.com/models/zGVv6G2Wf/";
+        let model, webcam, ctx, labelContainer, maxPredictions;
+
+        async function init() {
+            const startBtn = document.getElementById("start-btn");
+            const spinner = document.getElementById("loading-spinner");
+            
+            // 로딩 상태 피드백 구현
+            startBtn.disabled = true;
+            startBtn.innerText = "모델 로딩 중...";
+            spinner.style.display = "block";
+
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
+
+            // 모델 로드
+            model = await tmPose.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            // 웹캠 설정 (기존 코드를 UI 사이즈에 맞게 300으로 상향 조정)
+            const size = 300;
+            const flip = true; 
+            webcam = new tmPose.Webcam(size, size, flip); 
+            await webcam.setup(); 
+            await webcam.play();
+            
+            // 로딩 완료 후 UI 정리
+            spinner.style.display = "none";
+            startBtn.style.display = "none"; 
+
+            window.requestAnimationFrame(loop);
+
+            // 캔버스 세팅
+            const canvas = document.getElementById("canvas");
+            canvas.width = size; canvas.height = size;
+            ctx = canvas.getContext("2d");
+            
+            // 결과창에 게이지 레이아웃 동적 생성
+            labelContainer = document.getElementById("label-container");
+            labelContainer.innerHTML = ""; // 초기 메시지 삭제
+            
+            for (let i = 0; i < maxPredictions; i++) {
+                const item = document.createElement("div");
+                item.className = "prediction-item";
+                item.innerHTML = `
+                    <div class="label-text">
+                        <span class="class-name">Loading...</span>
+                        <span class="probability-value">0%</span>
+                    </div>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar-fill"></div>
+                    </div>
+                `;
+                labelContainer.appendChild(item);
+            }
+        }
+
+        async function loop(timestamp) {
+            webcam.update(); 
+            await predict();
+            window.requestAnimationFrame(loop);
+        }
+
+        async function predict() {
+            const { pose, posenetOutput } = await model.estimatePose(webcam.canvas);
+            const prediction = await model.predict(posenetOutput);
+
+            // 게이지 바 및 퍼센트 텍스트 실시간 업데이트
+            for (let i = 0; i < maxPredictions; i++) {
+                const className = prediction[i].className;
+                const probability = (prediction[i].probability * 100).toFixed(0); // 정수형 퍼센트 변환
+                
+                const item = labelContainer.childNodes[i];
+                if (item && item.querySelector) {
+                    item.querySelector(".class-name").innerText = className;
+                    item.querySelector(".probability-value").innerText = probability + "%";
+                    item.querySelector(".progress-bar-fill").style.width = probability + "%";
+                }
+            }
+
+            // 웹캠 프레임 및 포즈 스켈레톤 렌더링
+            drawPose(pose);
+        }
+
+        function drawPose(pose) {
+            if (webcam.canvas) {
+                ctx.drawImage(webcam.canvas, 0, 0);
+                if (pose) {
+                    const minPartConfidence = 0.5;
+                    tmPose.drawKeypoints(pose.keypoints, minPartConfidence, ctx);
+                    tmPose.drawSkeleton(pose.keypoints, minPartConfidence, ctx);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
