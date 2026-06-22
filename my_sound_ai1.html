@@ -1,0 +1,214 @@
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>소음 측정기 + 티처블 머신</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands@0.4.0/dist/speech-commands.min.js"></script>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:"Malgun Gothic",sans-serif;}
+body{background:white;transition:.5s;min-height:100vh;display:flex;justify-content:center;align-items:center;padding:20px;}
+.container{text-align:center;width:90%;max-width:900px;}
+h1{font-size:3rem;margin-bottom:20px;}
+.statusIcon{font-size:5rem;}
+.statusText{font-size:4rem;font-weight:bold;}
+.soundType{font-size:2rem;font-weight:bold;margin-top:15px;}
+.db{font-size:2rem;margin-top:15px;}
+canvas{width:100%;max-width:800px;height:220px;display:block;margin:20px auto;}
+.settings{margin-top:20px;padding:20px;background:rgba(255,255,255,.8);border-radius:15px;}
+input{width:100%;}
+button{padding:15px 30px;margin:10px;border:none;border-radius:10px;cursor:pointer;font-size:1.1rem;}
+.start{background:#2196F3;color:white;}
+.stop{background:#F44336;color:white;}
+</style>
+</head>
+<body>
+
+<div class="container">
+<h1>소음 측정기</h1>
+
+<div class="statusIcon" id="icon">🔈</div>
+<div class="statusText" id="status">조용함</div>
+
+<div style="margin-top:15px;">감지된 소리</div>
+<div class="soundType" id="soundType">❓ 대기 중</div>
+
+<div class="db" id="db">0 dB</div>
+
+<canvas id="visualizer" width="800" height="220"></canvas>
+
+<div class="settings">
+<label>조용함 기준: <span id="quietValue">25</span>dB 이하</label>
+<input type="range" id="quietLimit" min="0" max="100" value="25">
+
+<br><br>
+
+<label>시끄러움 기준: <span id="loudValue">60</span>dB 이상</label>
+<input type="range" id="loudLimit" min="0" max="100" value="60">
+</div>
+
+<button class="start" onclick="startAudio()">측정 시작</button>
+<button class="stop" onclick="stopAudio()">정지</button>
+</div>
+
+<script>
+const MODEL_URL="https://teachablemachine.withgoogle.com/models/E577z_cBX/";
+
+const canvas=document.getElementById("visualizer");
+const ctx=canvas.getContext("2d");
+
+let stream,analyser,audioContext,animationId;
+let recognizer;
+
+const quietLimit=document.getElementById("quietLimit");
+const loudLimit=document.getElementById("loudLimit");
+
+quietLimit.oninput=()=>document.getElementById("quietValue").textContent=quietLimit.value;
+loudLimit.oninput=()=>document.getElementById("loudValue").textContent=loudLimit.value;
+
+function setState(state){
+ const status=document.getElementById("status");
+ const icon=document.getElementById("icon");
+
+ if(state==="조용함"){
+  document.body.style.background="#E3F2FD";
+  status.textContent="조용함"; icon.textContent="🔈";
+ }else if(state==="적당함"){
+  document.body.style.background="#E8F5E9";
+  status.textContent="적당함"; icon.textContent="🔉";
+ }else{
+  document.body.style.background="#FFEBEE";
+  status.textContent="시끄러움"; icon.textContent="🔊";
+ }
+}
+
+function setSoundType(type){
+ const sound=document.getElementById("soundType");
+ switch(type){
+  case "사람 소리": sound.textContent="👤 사람 소리"; break;
+  case "충격음": sound.textContent="🔨 충격음"; break;
+  case "알림음": sound.textContent="🔔 알림음"; break;
+  case "환경음": sound.textContent="🌬️ 환경음"; break;
+  default: sound.textContent="❓ 대기 중";
+ }
+}
+
+async function createModel(){
+ const checkpointURL=MODEL_URL+"model.json";
+ const metadataURL=MODEL_URL+"metadata.json";
+
+ recognizer=speechCommands.create(
+  "BROWSER_FFT",
+  undefined,
+  checkpointURL,
+  metadataURL
+ );
+
+ await recognizer.ensureModelLoaded();
+}
+
+async function startAudio(){
+ try{
+  if(!recognizer) await createModel();
+
+  stream=await navigator.mediaDevices.getUserMedia({audio:true});
+  audioContext=new AudioContext();
+  analyser=audioContext.createAnalyser();
+  analyser.fftSize=256;
+
+  const microphone=audioContext.createMediaStreamSource(stream);
+  microphone.connect(analyser);
+
+  recognizer.listen(result=>{
+   const labels=recognizer.wordLabels();
+
+   let maxIndex=0;
+   for(let i=1;i<result.scores.length;i++){
+    if(result.scores[i]>result.scores[maxIndex]) maxIndex=i;
+   }
+
+   const bestLabel=labels[maxIndex];
+   const confidence=result.scores[maxIndex];
+
+   if(confidence>=0.75){
+    setSoundType(bestLabel);
+   }else{
+    setSoundType("Background Noise");
+   }
+  },{
+   probabilityThreshold:0.75,
+   invokeCallbackOnNoiseAndUnknown:true,
+   overlapFactor:0.5
+  });
+
+  visualize();
+ }catch(e){
+  alert("마이크 권한을 허용해주세요.");
+  console.error(e);
+ }
+}
+
+function stopAudio(){
+ cancelAnimationFrame(animationId);
+
+ if(stream){
+  stream.getTracks().forEach(t=>t.stop());
+ }
+
+ if(recognizer){
+  recognizer.stopListening();
+ }
+
+ document.body.style.background="white";
+ document.getElementById("db").textContent="0 dB";
+ document.getElementById("soundType").textContent="❓ 대기 중";
+}
+
+function visualize(){
+ const bufferLength=analyser.frequencyBinCount;
+ const dataArray=new Uint8Array(bufferLength);
+
+ function draw(){
+  animationId=requestAnimationFrame(draw);
+
+  analyser.getByteFrequencyData(dataArray);
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  let avg=0;
+  let x=0;
+  const barWidth=canvas.width/bufferLength;
+
+  for(let i=0;i<bufferLength;i++){
+   const value=dataArray[i];
+   avg+=value;
+
+   const h=value*1.5;
+   ctx.fillStyle="#222";
+   ctx.fillRect(x,canvas.height-h,barWidth-2,h);
+   x+=barWidth;
+  }
+
+  avg/=bufferLength;
+  const db=Math.round(avg);
+
+  document.getElementById("db").textContent=db+" dB";
+
+  if(db<=Number(quietLimit.value)){
+   setState("조용함");
+  }else if(db>=Number(loudLimit.value)){
+   setState("시끄러움");
+  }else{
+   setState("적당함");
+  }
+ }
+
+ draw();
+}
+
+setState("조용함");
+</script>
+</body>
+</html>'''
