@@ -1,331 +1,214 @@
-<!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teachable Machine Pose Model UI</title>
-    
-    <style>
-        /* 기본 테마 및 레이아웃 설정 */
-        :root {
-            --bg-color: #0f172a;
-            --card-bg: #1e293b;
-            --primary: #6366f1;
-            --primary-hover: #4f46e5;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --border: #334155;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>소음 측정기 + 티처블 머신</title>
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-        }
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands@0.4.0/dist/speech-commands.min.js"></script>
 
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            width: 100%;
-            max-width: 900px;
-        }
-
-        header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        header h1 {
-            font-size: 2rem;
-            font-weight: 800;
-            margin-bottom: 8px;
-        }
-
-        header h1 span {
-            color: var(--primary);
-        }
-
-        header p {
-            color: var(--text-muted);
-            font-size: 0.95rem;
-        }
-
-        /* 메인 콘텐츠 그리드 레이아웃 */
-        .content-wrapper {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 24px;
-        }
-
-        @media (min-width: 768px) {
-            .content-wrapper {
-                grid-template-columns: 1.1fr 1fr;
-            }
-        }
-
-        /* 왼쪽: 웹캠 카메라 섹션 */
-        .video-section {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            background: var(--card-bg);
-            padding: 24px;
-            border-radius: 20px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-        }
-
-        .canvas-container {
-            position: relative;
-            width: 100%;
-            max-width: 300px;
-            aspect-ratio: 1 / 1;
-            background: #000;
-            border-radius: 12px;
-            overflow: hidden;
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        canvas {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        /* 시작 버튼 */
-        #start-btn {
-            width: 100%;
-            max-width: 300px;
-            padding: 14px;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        #start-btn:hover {
-            background: var(--primary-hover);
-        }
-
-        #start-btn:disabled {
-            background: #475569;
-            cursor: not-allowed;
-        }
-
-        /* 오른쪽: 실시간 분석 결과 섹션 */
-        .result-section {
-            background: var(--card-bg);
-            padding: 24px;
-            border-radius: 20px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-            display: flex;
-            flex-direction: column;
-        }
-
-        .result-section h2 {
-            font-size: 1.2rem;
-            margin-bottom: 20px;
-            border-bottom: 2px solid var(--border);
-            padding-bottom: 10px;
-        }
-
-        /* 動的 생성될 결과 한 줄(클래스별 게이지) 디자인 */
-        #label-container {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .prediction-item {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .label-text {
-            display: flex;
-            justify-content: space-between;
-            font-size: 18px;          /* 기존 요청하신 큰 폰트 크기 유지 */
-            font-weight: bold;        /* 두껍게 처리 */
-            color: var(--text-main);  /* 다크모드에 맞춰 밝은 색상으로 조정 */
-        }
-
-        .progress-bar-bg {
-            width: 100%;
-            height: 14px;
-            background: var(--border);
-            border-radius: 7px;
-            overflow: hidden;
-        }
-
-        .progress-bar-fill {
-            height: 100%;
-            width: 0%;
-            background: linear-gradient(90deg, #818cf8, var(--primary));
-            border-radius: 7px;
-            transition: width 0.1s ease-out;
-        }
-
-        /* 로딩 스피너 */
-        .spinner {
-            position: absolute;
-            border: 4px solid rgba(255, 255, 255, 0.1);
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            border-left-color: var(--primary);
-            animation: spin 1s linear infinite;
-            display: none;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:"Malgun Gothic",sans-serif;}
+body{background:white;transition:.5s;min-height:100vh;display:flex;justify-content:center;align-items:center;padding:20px;}
+.container{text-align:center;width:90%;max-width:900px;}
+h1{font-size:3rem;margin-bottom:20px;}
+.statusIcon{font-size:5rem;}
+.statusText{font-size:4rem;font-weight:bold;}
+.soundType{font-size:2rem;font-weight:bold;margin-top:15px;}
+.db{font-size:2rem;margin-top:15px;}
+canvas{width:100%;max-width:800px;height:220px;display:block;margin:20px auto;}
+.settings{margin-top:20px;padding:20px;background:rgba(255,255,255,.8);border-radius:15px;}
+input{width:100%;}
+button{padding:15px 30px;margin:10px;border:none;border-radius:10px;cursor:pointer;font-size:1.1rem;}
+.start{background:#2196F3;color:white;}
+.stop{background:#F44336;color:white;}
+</style>
 </head>
 <body>
 
-    <div class="container">
-        <header>
-            <h1>Teachable Machine <span>Pose Model</span></h1>
-            <p>실시간으로 포즈를 감지하고 분석합니다.</p>
-        </header>
+<div class="container">
+<h1>소음 측정기</h1>
 
-        <main class="content-wrapper">
-            <div class="video-section">
-                <div class="canvas-container">
-                    <canvas id="canvas"></canvas>
-                    <div id="loading-spinner" class="spinner"></div>
-                </div>
-                <button type="button" id="start-btn" onclick="init()">AI 카메라 시작</button>
-            </div>
+<div class="statusIcon" id="icon">🔈</div>
+<div class="statusText" id="status">조용함</div>
 
-            <div class="result-section">
-                <h2>실시간 분석 결과</h2>
-                <div id="label-container">
-                    <div style="color: var(--text-muted); font-size: 15px; font-weight: normal; text-align: center; margin-top: 20px;">
-                        카메라를 시작하면 분석 결과가 이곳에 표시됩니다.
-                    </div>
-                </div>
-            </div>
-        </main>
-    </div>
+<div style="margin-top:15px;">감지된 소리</div>
+<div class="soundType" id="soundType">❓ 대기 중</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/pose@0.8/dist/teachablemachine-pose.min.js"></script>
-    
-    <script type="text/javascript">
-        // Teachable Machine 제공 모델 URL
-        const URL = "https://teachablemachine.withgoogle.com/models/zGVv6G2Wf/";
-        let model, webcam, ctx, labelContainer, maxPredictions;
+<div class="db" id="db">0 dB</div>
 
-        async function init() {
-            const startBtn = document.getElementById("start-btn");
-            const spinner = document.getElementById("loading-spinner");
-            
-            // 로딩 상태 피드백 구현
-            startBtn.disabled = true;
-            startBtn.innerText = "모델 로딩 중...";
-            spinner.style.display = "block";
+<canvas id="visualizer" width="800" height="220"></canvas>
 
-            const modelURL = URL + "model.json";
-            const metadataURL = URL + "metadata.json";
+<div class="settings">
+<label>조용함 기준: <span id="quietValue">25</span>dB 이하</label>
+<input type="range" id="quietLimit" min="0" max="100" value="25">
 
-            // 모델 로드
-            model = await tmPose.load(modelURL, metadataURL);
-            maxPredictions = model.getTotalClasses();
+<br><br>
 
-            // 웹캠 설정 (기존 코드를 UI 사이즈에 맞게 300으로 상향 조정)
-            const size = 300;
-            const flip = true; 
-            webcam = new tmPose.Webcam(size, size, flip); 
-            await webcam.setup(); 
-            await webcam.play();
-            
-            // 로딩 완료 후 UI 정리
-            spinner.style.display = "none";
-            startBtn.style.display = "none"; 
+<label>시끄러움 기준: <span id="loudValue">60</span>dB 이상</label>
+<input type="range" id="loudLimit" min="0" max="100" value="60">
+</div>
 
-            window.requestAnimationFrame(loop);
+<button class="start" onclick="startAudio()">측정 시작</button>
+<button class="stop" onclick="stopAudio()">정지</button>
+</div>
 
-            // 캔버스 세팅
-            const canvas = document.getElementById("canvas");
-            canvas.width = size; canvas.height = size;
-            ctx = canvas.getContext("2d");
-            
-            // 결과창에 게이지 레이아웃 동적 생성
-            labelContainer = document.getElementById("label-container");
-            labelContainer.innerHTML = ""; // 초기 메시지 삭제
-            
-            for (let i = 0; i < maxPredictions; i++) {
-                const item = document.createElement("div");
-                item.className = "prediction-item";
-                item.innerHTML = `
-                    <div class="label-text">
-                        <span class="class-name">Loading...</span>
-                        <span class="probability-value">0%</span>
-                    </div>
-                    <div class="progress-bar-bg">
-                        <div class="progress-bar-fill"></div>
-                    </div>
-                `;
-                labelContainer.appendChild(item);
-            }
-        }
+<script>
+const MODEL_URL="https://teachablemachine.withgoogle.com/models/E577z_cBX/";
 
-        async function loop(timestamp) {
-            webcam.update(); 
-            await predict();
-            window.requestAnimationFrame(loop);
-        }
+const canvas=document.getElementById("visualizer");
+const ctx=canvas.getContext("2d");
 
-        async function predict() {
-            const { pose, posenetOutput } = await model.estimatePose(webcam.canvas);
-            const prediction = await model.predict(posenetOutput);
+let stream,analyser,audioContext,animationId;
+let recognizer;
 
-            // 게이지 바 및 퍼센트 텍스트 실시간 업데이트
-            for (let i = 0; i < maxPredictions; i++) {
-                const className = prediction[i].className;
-                const probability = (prediction[i].probability * 100).toFixed(0); // 정수형 퍼센트 변환
-                
-                const item = labelContainer.childNodes[i];
-                if (item && item.querySelector) {
-                    item.querySelector(".class-name").innerText = className;
-                    item.querySelector(".probability-value").innerText = probability + "%";
-                    item.querySelector(".progress-bar-fill").style.width = probability + "%";
-                }
-            }
+const quietLimit=document.getElementById("quietLimit");
+const loudLimit=document.getElementById("loudLimit");
 
-            // 웹캠 프레임 및 포즈 스켈레톤 렌더링
-            drawPose(pose);
-        }
+quietLimit.oninput=()=>document.getElementById("quietValue").textContent=quietLimit.value;
+loudLimit.oninput=()=>document.getElementById("loudValue").textContent=loudLimit.value;
 
-        function drawPose(pose) {
-            if (webcam.canvas) {
-                ctx.drawImage(webcam.canvas, 0, 0);
-                if (pose) {
-                    const minPartConfidence = 0.5;
-                    tmPose.drawKeypoints(pose.keypoints, minPartConfidence, ctx);
-                    tmPose.drawSkeleton(pose.keypoints, minPartConfidence, ctx);
-                }
-            }
-        }
-    </script>
+function setState(state){
+ const status=document.getElementById("status");
+ const icon=document.getElementById("icon");
+
+ if(state==="조용함"){
+  document.body.style.background="#E3F2FD";
+  status.textContent="조용함"; icon.textContent="🔈";
+ }else if(state==="적당함"){
+  document.body.style.background="#E8F5E9";
+  status.textContent="적당함"; icon.textContent="🔉";
+ }else{
+  document.body.style.background="#FFEBEE";
+  status.textContent="시끄러움"; icon.textContent="🔊";
+ }
+}
+
+function setSoundType(type){
+ const sound=document.getElementById("soundType");
+ switch(type){
+  case "사람 소리": sound.textContent="👤 사람 소리"; break;
+  case "충격음": sound.textContent="🔨 충격음"; break;
+  case "알림음": sound.textContent="🔔 알림음"; break;
+  case "환경음": sound.textContent="🌬️ 환경음"; break;
+  default: sound.textContent="❓ 대기 중";
+ }
+}
+
+async function createModel(){
+ const checkpointURL=MODEL_URL+"model.json";
+ const metadataURL=MODEL_URL+"metadata.json";
+
+ recognizer=speechCommands.create(
+  "BROWSER_FFT",
+  undefined,
+  checkpointURL,
+  metadataURL
+ );
+
+ await recognizer.ensureModelLoaded();
+}
+
+async function startAudio(){
+ try{
+  if(!recognizer) await createModel();
+
+  stream=await navigator.mediaDevices.getUserMedia({audio:true});
+  audioContext=new AudioContext();
+  analyser=audioContext.createAnalyser();
+  analyser.fftSize=256;
+
+  const microphone=audioContext.createMediaStreamSource(stream);
+  microphone.connect(analyser);
+
+  recognizer.listen(result=>{
+   const labels=recognizer.wordLabels();
+
+   let maxIndex=0;
+   for(let i=1;i<result.scores.length;i++){
+    if(result.scores[i]>result.scores[maxIndex]) maxIndex=i;
+   }
+
+   const bestLabel=labels[maxIndex];
+   const confidence=result.scores[maxIndex];
+
+   if(confidence>=0.75){
+    setSoundType(bestLabel);
+   }else{
+    setSoundType("Background Noise");
+   }
+  },{
+   probabilityThreshold:0.75,
+   invokeCallbackOnNoiseAndUnknown:true,
+   overlapFactor:0.5
+  });
+
+  visualize();
+ }catch(e){
+  alert("마이크 권한을 허용해주세요.");
+  console.error(e);
+ }
+}
+
+function stopAudio(){
+ cancelAnimationFrame(animationId);
+
+ if(stream){
+  stream.getTracks().forEach(t=>t.stop());
+ }
+
+ if(recognizer){
+  recognizer.stopListening();
+ }
+
+ document.body.style.background="white";
+ document.getElementById("db").textContent="0 dB";
+ document.getElementById("soundType").textContent="❓ 대기 중";
+}
+
+function visualize(){
+ const bufferLength=analyser.frequencyBinCount;
+ const dataArray=new Uint8Array(bufferLength);
+
+ function draw(){
+  animationId=requestAnimationFrame(draw);
+
+  analyser.getByteFrequencyData(dataArray);
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  let avg=0;
+  let x=0;
+  const barWidth=canvas.width/bufferLength;
+
+  for(let i=0;i<bufferLength;i++){
+   const value=dataArray[i];
+   avg+=value;
+
+   const h=value*1.5;
+   ctx.fillStyle="#222";
+   ctx.fillRect(x,canvas.height-h,barWidth-2,h);
+   x+=barWidth;
+  }
+
+  avg/=bufferLength;
+  const db=Math.round(avg);
+
+  document.getElementById("db").textContent=db+" dB";
+
+  if(db<=Number(quietLimit.value)){
+   setState("조용함");
+  }else if(db>=Number(loudLimit.value)){
+   setState("시끄러움");
+  }else{
+   setState("적당함");
+  }
+ }
+
+ draw();
+}
+
+setState("조용함");
+</script>
 </body>
-</html>
+</html>'''
